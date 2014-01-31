@@ -78,26 +78,23 @@ if ( $Module->isCurrentAction( 'Login' ) and
         $postData = $lastPostVars;
         $http->setSessionVariable( 'LastPostVars', $lastPostVars );
     }
-
+                                                                                                                                                                                                           
     // QH YubiKey
     $YubiKeyIsValid = false;
     $YubiKeyPrefix = substr($YubiKey, 0, 12);                                                                                                                                                                                                                 
-                                                                                                                                                                                                                                           
-    // Validate OTP                                                                                                                                                                                                                    
-    if(!empty($YubiKey)) {                                                                                                                                                                                                             
-        // Generate a new id+key from https://api.yubico.com/get-api-key/      
-        $yubi = new Auth_Yubico('3826', 'cMidarDsxfKD2WafoWEyRCQbQrk=');
-        $auth = $yubi->verify($YubiKey);                                                                                                                                                                                           
-        if (PEAR::isError($auth)) {                                                                                                                                                                                                
-                eZLog::write("<p>Authentication failed: " . $auth->getMessage() . "<p>Debug output from server: " . $yubi->getLastResponse());                                                                                     
-        } else {
+    if (!empty($YubiKey)) {
+        try {
+            // Generate a new id+key from https://api.yubico.com/get-api-key/      
+            $yubi = new Auth_Yubico('3826', 'cMidarDsxfKD2WafoWEyRCQbQrk=');
+            $yubi->verify($YubiKey);
             eZLog::write("YubiKey valid");
             $YubiKeyIsValid = true;
+        } catch (Exception $e) {
+            eZLog::write("<p>Authentication failed: " . $e->getMessage() . "<p>Debug output from server: " . $yubi->getLastResponse());
         }
-  }
-
-  // QH YubiKey
-  if(!empty($YubiKey) && !$YubiKeyIsValid) {
+    }
+    $user = false;
+    if (!empty($YubiKey) && !$YubiKeyIsValid) {
         $loginWarning = true;
         eZLog::write("Empty or invalid YubiKey");
     } else {
