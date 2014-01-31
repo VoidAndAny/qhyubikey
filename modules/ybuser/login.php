@@ -1,34 +1,10 @@
 <?php
-//
-// Created on: <02-May-2002 16:24:15 bf>
-//
-// SOFTWARE NAME: eZ Publish
-// SOFTWARE RELEASE: 4.0.3
-// BUILD VERSION: 22993
-// COPYRIGHT NOTICE: Copyright (C) 1999-2008 eZ Systems AS
-// SOFTWARE LICENSE: GNU General Public License v2.0
-// NOTICE: >
-//   This program is free software; you can redistribute it and/or
-//   modify it under the terms of version 2.0  of the GNU General
-//   Public License as published by the Free Software Foundation.
-//
-//   This program is distributed in the hope that it will be useful,
-//   but WITHOUT ANY WARRANTY; without even the implied warranty of
-//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//   GNU General Public License for more details.
-//
-//   You should have received a copy of version 2.0 of the GNU General
-//   Public License along with this program; if not, write to the Free
-//   Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-//   MA 02110-1301, USA.
-//
-//
-
-//include_once( 'lib/ezutils/classes/ezhttptool.php' );
-//include_once( 'kernel/classes/datatypes/ezuser/ezuser.php' );
-require_once( 'kernel/common/template.php' );
-//include_once( 'lib/ezutils/classes/ezini.php' );
-//include_once( 'kernel/classes/datatypes/ezuser/ezuserloginhandler.php' );
+/**
+ * @copyright Copyright (C) 1999-2012 eZ Systems AS. All rights reserved.
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License v2
+ * @version  2012.8
+ * @package kernel
+ */
 
 //$Module->setExitStatus( EZ_MODULE_STATUS_SHOW_LOGIN_PAGE );
 
@@ -52,36 +28,39 @@ if ( isset( $Params['SiteAccessName'] ) )
     $siteAccessName = $Params['SiteAccessName'];
 
 $postData = ''; // Will contain post data from previous page.
-if ( $http->hasSessionVariable( '$_POST_BeforeLogin' ) )
+if ( $http->hasSessionVariable( '$_POST_BeforeLogin', false ) )
 {
     $postData = $http->sessionVariable( '$_POST_BeforeLogin' );
     $http->removeSessionVariable( '$_POST_BeforeLogin' );
 }
 
+// QH YubiKey
 if ( $Module->isCurrentAction( 'Login' ) and
      $Module->hasActionParameter( 'UserLogin' ) and
-     ($Module->hasActionParameter( 'UserPassword' ) or $Module->hasActionParameter('YubiKey'))and
+     ( $Module->hasActionParameter( 'UserPassword' ) or $Module->hasActionParameter('YubiKey') ) and
      !$http->hasPostVariable( "RegisterButton" )
      )
 {
     $userLogin = $Module->actionParameter( 'UserLogin' );
     $userPassword = $Module->actionParameter( 'UserPassword' );
     $userRedirectURI = $Module->actionParameter( 'UserRedirectURI' );
-
     // QH YubiKey
     $YubiKey = $Module->actionParameter('YubiKey');
-
+    
     if ( trim( $userRedirectURI ) == "" )
     {
         // Only use redirection if RequireUserLogin is disabled
         $requireUserLogin = ( $ini->variable( "SiteAccessSettings", "RequireUserLogin" ) == "true" );
         if ( !$requireUserLogin )
         {
-            if ( $http->hasSessionVariable( "LastAccessesURI" ) )
-                $userRedirectURI = $http->sessionVariable( "LastAccessesURI" );
+            $userRedirectURI = trim( $http->postVariable( 'RedirectURI', '' ) );
+            if ( empty( $userRedirectURI ) )
+            {
+                $userRedirectURI = $http->sessionVariable( 'LastAccessesURI', '/' );
+            }
         }
 
-        if ( $http->hasSessionVariable( "RedirectAfterLogin" ) )
+        if ( $http->hasSessionVariable( "RedirectAfterLogin", false ) )
         {
             $userRedirectURI = $http->sessionVariable( "RedirectAfterLogin" );
         }
@@ -99,134 +78,105 @@ if ( $Module->isCurrentAction( 'Login' ) and
         $postData = $lastPostVars;
         $http->setSessionVariable( 'LastPostVars', $lastPostVars );
     }
-    
-	// QH YubiKey
-	$YubiKeyIsValid = false;                                                                                                                                                                                                           
-        $YubiKeyPrefix = substr($YubiKey, 0, 12);                                                                                                                                                                                          
+
+    // QH YubiKey
+    $YubiKeyIsValid = false;
+    $YubiKeyPrefix = substr($YubiKey, 0, 12);                                                                                                                                                                                                                 
                                                                                                                                                                                                                                            
-        // Validate OTP                                                                                                                                                                                                                    
-        if(!empty($YubiKey)) {                                                                                                                                                                                                             
-                // Generate a new id+key from https://api.yubico.com/get-api-key/                                                                                                                                                           
-                $yubi = new Auth_Yubico('3826', 'cMidarDsxfKD2WafoWEyRCQbQrk=');                                                                                                                                                          
-                $auth = $yubi->verify($YubiKey);                                                                                                                                                                                           
-                if (PEAR::isError($auth)) {                                                                                                                                                                                                
-                        eZLog::write("<p>Authentication failed: " . $auth->getMessage() . "<p>Debug output from server: " . $yubi->getLastResponse());                                                                                     
-                } else {
-			eZLog::write("YubiKey valid");                                                                                                                                                                                              
-                        $YubiKeyIsValid = true;                                                                                                                                                                                            
-                }                                                                                                                                                                                                                          
+    // Validate OTP                                                                                                                                                                                                                    
+    if(!empty($YubiKey)) {                                                                                                                                                                                                             
+        // Generate a new id+key from https://api.yubico.com/get-api-key/      
+        $yubi = new Auth_Yubico('3826', 'cMidarDsxfKD2WafoWEyRCQbQrk=');
+        $auth = $yubi->verify($YubiKey);                                                                                                                                                                                           
+        if (PEAR::isError($auth)) {                                                                                                                                                                                                
+                eZLog::write("<p>Authentication failed: " . $auth->getMessage() . "<p>Debug output from server: " . $yubi->getLastResponse());                                                                                     
+        } else {
+            eZLog::write("YubiKey valid");
+            $YubiKeyIsValid = true;
         }
+  }
 
   // QH YubiKey
   if(!empty($YubiKey) && !$YubiKeyIsValid) {
-    $loginWarning = true;
-    eZLog::write("Empty or invalid YubiKey");
-  } else {
-    $user = false;
-    if ( $userLogin != '' )
-    {
-        $http->removeSessionVariable( 'RedirectAfterLogin' );
-
-        $ini = eZINI::instance();
-        if ( $ini->hasVariable( 'UserSettings', 'LoginHandler' ) )
+        $loginWarning = true;
+        eZLog::write("Empty or invalid YubiKey");
+    } else {
+        if ( $userLogin != '' )
         {
-            $loginHandlers = $ini->variable( 'UserSettings', 'LoginHandler' );
+            if ( $http->hasSessionVariable( "RedirectAfterLogin", false ) )
+            {
+                $http->removeSessionVariable( 'RedirectAfterLogin' );
+            }
+
+            if ( $ini->hasVariable( 'UserSettings', 'LoginHandler' ) )
+            {
+                $loginHandlers = $ini->variable( 'UserSettings', 'LoginHandler' );
+            }
+            else
+            {
+                $loginHandlers = array( 'standard' );
+            }
+            $hasAccessToSite = true;
+
+            if ( $http->hasPostVariable( 'Cookie' )
+                && $ini->hasVariable( 'Session', 'RememberMeTimeout' )
+                && ( $rememberMeTimeout = $ini->variable( 'Session', 'RememberMeTimeout' ) )
+            )
+            {
+                eZSession::setCookieLifetime( $rememberMeTimeout );
+            }
+
+            foreach ( array_keys ( $loginHandlers ) as $key )
+            {
+                $loginHandler = $loginHandlers[$key];
+                $userClass = eZUserLoginHandler::instance( $loginHandler );
+                if ( !is_object( $userClass ) )
+                {
+                    continue;
+                }
+                // QH YubiKey
+                if ($loginHandler == "yubikeylogin") {
+                    $user = $userClass->loginUser($userLogin, $YubiKey);
+                } else {
+                    $user = $userClass->loginUser($userLogin, $userPassword);
+                }                
+                if ( $user instanceof eZUser )
+                {
+                    $hasAccessToSite = $user->canLoginToSiteAccess( $GLOBALS['eZCurrentAccess'] );
+                    if ( !$hasAccessToSite )
+                    {
+                        $user->logoutCurrent();
+                        $user = null;
+                        $siteAccessName = $GLOBALS['eZCurrentAccess']['name'];
+                        $siteAccessAllowed = false;
+                    }
+                    break;
+                } else {
+                    // QH YubiKey
+                    eZLog::write("Handler returned non object user");
+                    if ($user == eZYubiKeyLoginUser::REQUIRE_MULTIFACTOR || $user == eZYubiKeyLoginUser::REQUIRE_YUBIKEY_OTP)
+                        break;                    
+                }
+            }
+            if ( !( $user instanceof eZUser ) and $hasAccessToSite )
+                $loginWarning = true;
         }
         else
         {
-            $loginHandlers = array( 'standard' );
-        }
-        $hasAccessToSite = true;
-        foreach ( array_keys ( $loginHandlers ) as $key )
-        {
-            $loginHandler = $loginHandlers[$key];
-            $userClass = eZUserLoginHandler::instance( $loginHandler );
-            if ( !is_object( $userClass ) )
-            {
-                continue;
-            }
-
-	    // QH YubiKey
-	    if($loginHandler == "yubikeylogin") { 
-		$user = $userClass->loginUser( $userLogin, $YubiKey );
-	    } else {
-            	$user = $userClass->loginUser( $userLogin, $userPassword );
-	    }
-
-            if ( $user instanceof eZUser )
-            {
-		eZLog::write("Handler returned an object user: ".var_export($user, true));
-                $access = $GLOBALS['eZCurrentAccess'];
-                $siteAccessResult = $user->hasAccessTo( 'user', 'login' );
-                $hasAccessToSite = false;
-                // A check that the user has rights to access current siteaccess.
-                if ( $siteAccessResult[ 'accessWord' ] == 'limited' )
-                {
-                    $siteNameCRC = eZSys::ezcrc32( $access[ 'name' ] );
-                    //include_once( 'lib/ezutils/classes/ezsys.php' );
-
-                    $policyChecked = false;
-                    foreach ( $siteAccessResult['policies'] as $policy )
-                    {
-                        if ( isset( $policy['SiteAccess'] ) )
-                        {
-                            $policyChecked = true;
-                            if ( in_array( $siteNameCRC, $policy['SiteAccess'] ) )
-                            {
-                                $hasAccessToSite = true;
-                                break;
-                            }
-                        }
-                        if ( $hasAccessToSite )
-                            break;
-                    }
-                    if ( !$policyChecked )
-                        $hasAccessToSite = true;
-                }
-                else if ( $siteAccessResult[ 'accessWord' ] == 'yes' )
-                {
-                    $hasAccessToSite = true;
-                }
-                // If the user doesn't have the rights.
-                if ( !$hasAccessToSite )
-                {
-/*		    eZLog::write("No access right");
-                    $user->logoutCurrent();
-                    $user = null;
-                    $siteAccessName = $access['name'];
-                    $siteAccessAllowed = false;
-*/
-                } else {
-		    eZLog::write("Access granted");
-		}
-                break;
-            } else {
-		// QH YubiKey
-		eZLog::write("Handler returned non object user");
-		if($user == eZYubiKeyLoginUser::REQUIRE_MULTIFACTOR || $user == eZYubiKeyLoginUser::REQUIRE_YUBIKEY_OTP) break;
-	    }
-        }
-        if ( !( $user instanceof eZUser ) and $hasAccessToSite )
             $loginWarning = true;
+        }
     }
-    else
-    {
-        $loginWarning = true;
-    }
-  }
 
     $redirectionURI = $userRedirectURI;
-
     // QH YubiKey
-    if($redirectionURI == 'user/login') $redirectionURI = '';
-
+    if ($redirectionURI == 'user/login')
+        $redirectionURI = '';
+    
     // Determine if we already know redirection URI.
     $haveRedirectionURI = ( $redirectionURI != '' && $redirectionURI != '/' );
 
     if ( !$haveRedirectionURI )
         $redirectionURI = $ini->variable( 'SiteSettings', 'DefaultPage' );
-
-	eZLog::write("Redir URI ({$haveRedirectionURI}) {$redirectionURI}");
 
     /* If the user has successfully passed authorization
      * and we don't know redirection URI yet.
@@ -247,7 +197,6 @@ if ( $Module->isCurrentAction( 'Login' ) and
         // First, let's determine which attributes we should search redirection URI in.
         $userUriAttrName  = '';
         $groupUriAttrName = '';
-        $ini = eZINI::instance();
         if ( $ini->hasVariable( 'UserSettings', 'LoginRedirectionUriAttribute' ) )
         {
             $uriAttrNames = $ini->variable( 'UserSettings', 'LoginRedirectionUriAttribute' );
@@ -329,26 +278,10 @@ if ( $Module->isCurrentAction( 'Login' ) and
         $userID = $user->id();
     if ( $userID > 0 )
     {
-        if ( $http->hasPostVariable( 'Cookie' ) )
-        {
-            $ini = eZINI::instance();
-            $rememberMeTimeout = $ini->hasVariable( 'Session', 'RememberMeTimeout' )
-                                 ? $ini->variable( 'Session', 'RememberMeTimeout' )
-                                 : false;
-            if ( $rememberMeTimeout )
-            {
-                $GLOBALS['RememberMeTimeout'] = $rememberMeTimeout;
-                eZSessionStop();
-                eZSessionStart();
-                unset( $GLOBALS['RememberMeTimeout'] );
-            }
-
-        }
         $http->removeSessionVariable( 'eZUserLoggedInID' );
         $http->setSessionVariable( 'eZUserLoggedInID', $userID );
 
         // Remove all temporary drafts
-        //include_once( 'kernel/classes/ezcontentobject.php' );
         eZContentObject::cleanupAllInternalDrafts( $userID );
         return $Module->redirectTo( $redirectionURI );
     }
@@ -379,7 +312,6 @@ $maxNumOfFailedLogin = !eZUser::isTrusted() ? eZUser::maxNumberOfFailedLogin() :
 // Should we show message about failed login attempt and max number of failed login
 if ( $loginWarning and isset( $GLOBALS['eZFailedLoginAttemptUserID'] ) )
 {
-    $ini = eZINI::instance();
     $showMessageIfExceeded = $ini->hasVariable( 'UserSettings', 'ShowMessageIfExceeded' ) ? $ini->variable( 'UserSettings', 'ShowMessageIfExceeded' ) == 'true' : false;
 
     $failedUserID = $GLOBALS['eZFailedLoginAttemptUserID'];
@@ -390,7 +322,7 @@ if ( $loginWarning and isset( $GLOBALS['eZFailedLoginAttemptUserID'] ) )
         $userIsNotAllowedToLogin = true;
 }
 
-$tpl = templateInit();
+$tpl = eZTemplate::factory();
 
 $tpl->setVariable( 'login', $userLogin, 'User' );
 $tpl->setVariable( 'post_data', $postData, 'User' );

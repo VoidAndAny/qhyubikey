@@ -1,5 +1,5 @@
 {* Warnings *}
-{section show=$User:warning.bad_login}
+{if $User:warning.bad_login}
 <div class="message-warning">
 <h2><span class="time">[{currentdate()|l10n( shortdatetime )}]</span> {'The system could not log you in.'|i18n( 'design/admin/user/login' )}</h2>
 <ul>
@@ -15,8 +15,8 @@
     {/if}
 </ul>
 </div>
-{section-else}
-{section show=$site_access.allowed|not}
+{else}
+{if $site_access.allowed|not}
 <div class="message-warning">
 <h2><span class="time">[{currentdate()|l10n( shortdatetime )}]</span> {'Access denied!'|i18n( 'design/admin/user/login' )}</h2>
 <ul>
@@ -24,8 +24,8 @@
     <li>{'Please contact the site administrator.'|i18n( 'design/admin/user/login' )}</li>
 </ul>
 </div>
-{/section}
-{/section}
+{/if}
+{/if}
 
 {* Login window *}
 <div class="context-block">
@@ -96,12 +96,10 @@
 
 
 {literal}
-<script language="JavaScript" type="text/javascript">
-<!--
+<script type="text/javascript">
     window.onload=function()
     {
         document.getElementById('id1').focus();
     }
--->
 </script>
 {/literal}
